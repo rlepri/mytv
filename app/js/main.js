@@ -508,7 +508,9 @@
   loadApps().then(() => { renderApps(); renderCW(); U.setFocus(firstItem(), false); });
   refreshGames(); renderMovies(); loadStremio(); setInterval(renderMovies, 3 * 3600e3);
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { clearTimeout(idleT); if (ssOn) ssStop(); return; }
+    // saiu da tela (abriu outro app, Home etc.): fecha de verdade pra devolver a memória pra TV.
+    // Na próxima abertura ele carrega de novo e lembra tudo (Continuar, ordem, preferências).
+    if (document.hidden) { clearTimeout(idleT); if (ssOn) ssStop(); try { if (hasTizen) tizen.application.getCurrentApplication().exit(); } catch (e) { } return; }
     loadApps().then(() => { renderApps(); renderCW(); }); refreshGames(); loadStremio(); idle();
   });
 })();
