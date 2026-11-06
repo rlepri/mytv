@@ -250,7 +250,7 @@
     if (box.dataset.ids !== ids) {
       const focusId = U.cur && U.cur.closest('#games') && U.cur.dataset.id;
       box.dataset.ids = ids; box.innerHTML = '';
-      pick.forEach(g => { const r = el('div', 'f game', '<div class="img"><div class="who"><b><span class="live"></span>' + esc(g.teams.map(t => t.name).join(' x ')) + '</b><small></small></div><div class="right"></div></div>'); r.dataset.id = g.id; r._act = gameAct(g); box.appendChild(r); });
+      pick.forEach(g => { const r = el('div', 'f game', '<div class="img"><span class="live"></span><div class="who"><b>' + esc(g.teams.map(t => t.name).join(' x ')) + '</b><small></small></div><div class="right"></div></div>'); r.dataset.id = g.id; r._act = gameAct(g); box.appendChild(r); });
       if (focusId) U.setFocus(box.querySelector('[data-id="' + focusId + '"]') || box.firstChild, true);
     }
     pick.forEach(g => {
@@ -414,10 +414,11 @@
     const box = $('#ssvid'), f = document.createElement('iframe');
     f.allow = 'autoplay; encrypted-media'; f.setAttribute('allowfullscreen', '');
     f.src = P.player + '?l=' + encodeURIComponent((P.listas || []).join(',')) + '&v=' + encodeURIComponent((P.videos || []).join(',')) + '&b=' + encodeURIComponent((P.bloquear || []).join(','));
+    f.style.opacity = 0; f.style.transition = 'opacity 1.5s';
     box.innerHTML = ''; box.appendChild(f);
     let ok = false;
-    const fail = () => { if (!ssOn) return; box.innerHTML = ''; if (!$('#ssimg').children.length) ssSlides(); };
-    ssMsg = e => { const m = String(e.data || ''); if (m.indexOf('mytv:playing:') === 0) { ok = true; $('#sscap').textContent = m.slice(13); } else if (m === 'mytv:fail') fail(); };
+    const fail = () => { if (!ssOn) return; box.innerHTML = ''; };
+    ssMsg = e => { const m = String(e.data || ''); if (m.indexOf('mytv:playing:') === 0) { ok = true; f.style.opacity = 1; $('#sscap').textContent = m.slice(13); } else if (m === 'mytv:fail') fail(); };
     setTimeout(() => { if (ssOn && !ok) fail(); }, 20000);
     return true;
   }
@@ -460,7 +461,28 @@
   function ssStart() {
     if (ssOn || U.layers) return; ssOn = true; $('#ss').classList.add('open');
     $('#sscap').textContent = '';
-    if (!ssHosted() && !ssVideo()) ssSlides();
+    ssSlides();
+    ssLocal().then(ok => { if (!ok && ssOn) ssHosted(); });
+  }
+  // vídeos guardados no pacote da TV (pasta videos/, com a lista em videos/lista.json)
+  let ssList = null;
+  function ssLocal() {
+    const got = ssList ? Promise.resolve(ssList) : new Promise(ok => { const x = new XMLHttpRequest(); x.open('GET', 'videos/lista.json', true); x.timeout = 3000; x.onload = () => { try { ok(JSON.parse(x.responseText)); } catch (e) { ok([]); } }; x.onerror = x.ontimeout = () => ok([]); try { x.send(); } catch (e) { ok([]); } }).then(l => (ssList = Array.isArray(l) ? l : []));
+    return got.then(list => {
+      if (!ssOn || !list.length) return false;
+      const box = $('#ssvid'), v = document.createElement('video'); let last = -1;
+      v.setAttribute('playsinline', ''); v.preload = 'auto'; v.style.opacity = 0; v.style.transition = 'opacity 1.5s';
+      const next = () => {
+        let i = Math.floor(Math.random() * list.length); if (list.length > 1 && i === last) i = (i + 1) % list.length; last = i;
+        const it = list[i]; v.src = 'videos/' + (it.file || it); $('#sscap').textContent = it.title || '';
+        v.onloadedmetadata = () => { if (v.duration > 60) v.currentTime = Math.floor(v.duration * Math.random() * .7); };
+        const p = v.play(); if (p && p.catch) p.catch(() => { v.muted = true; v.play().catch(() => { }); });
+      };
+      v.onplaying = () => { v.style.opacity = 1; };
+      v.onended = next; v.onerror = () => { if (list.length > 1) next(); };
+      box.innerHTML = ''; box.appendChild(v); next();
+      return true;
+    });
   }
   function ssStop() { ssOn = false; $('#ss').classList.remove('open'); clearInterval(ssT); $('#ssvid').innerHTML = ''; ytP = null; setTimeout(() => { if (!ssOn) $('#ssimg').innerHTML = ''; }, 1300); idle(); }
   function idle() { clearTimeout(idleT); const m = +C.protetorMinutos || 0; if (m > 0 && !document.hidden) idleT = setTimeout(ssStart, m * 60000); }

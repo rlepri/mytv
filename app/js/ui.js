@@ -23,6 +23,7 @@
     } else {
       const par = el.offsetParent; if (!par) return;
       if (el.id === 'hero' || el.classList.contains('row')) sc = 1;
+      if (el.classList.contains('game')) sc = 1.03;
       w = el.offsetWidth; h = el.offsetHeight; x = el.offsetLeft; y = el.offsetTop;
       z = el.classList.contains('game') ? 7 : 4;
       if (ring.parentNode !== par) par.appendChild(ring);
