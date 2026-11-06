@@ -8,7 +8,7 @@ window.MYTV_DEFAULTS = {
 
   // Apps que aparecem na fileira por padrão, nessa ordem (pedaço do nome). Os outros ficam em "Todos os apps"
   // e podem ser ligados pela engrenagem.
-  ordemApps: ["youtube", "netflix", "globoplay", "quick", "ultra", "stremio", "nba", "chromecast", "prime", "disney", "max", "apple tv", "kick", "spotify", "internet", "browser"],
+  ordemApps: ["youtube", "netflix", "globoplay", "quick", "ultra", "stremio", "nba", "moonlight", "chromecast", "prime", "disney", "max", "apple tv", "kick", "spotify", "internet", "browser"],
   // Apps que nunca aparecem na fileira
   esconderApps: ["mytv"],
 
