@@ -1,4 +1,8 @@
 # mytv
 
-Player do protetor de tela do MyTV (tela inicial personalizada pra TV Samsung).
-O app abre esta página dentro do protetor porque o YouTube não toca vídeos direto em apps instalados.
+Site do MyTV (tela inicial personalizada pra TV Samsung).
+
+- `app/`: código que a TV carrega ao abrir. Atualizar aqui atualiza a TV.
+- `player/`: player do protetor de tela (o YouTube não toca direto em apps instalados).
+
+Chaves e senhas ficam só no `config.js` instalado na TV, nunca aqui.

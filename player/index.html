@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=1920"><meta name="referrer" content="strict-origin-when-cross-origin"><title>MyTV player</title>
+<style>html,body{margin:0;width:100%;height:100%;background:#000;overflow:hidden}#p{position:absolute;inset:0;width:100%;height:100%}</style></head>
+<body><div id="p"></div>
+<script>
+/* Player do protetor de tela do MyTV. Fica hospedado num site (https) porque o YouTube
+   não toca vídeos incorporados em páginas sem endereço, como os apps instalados na TV.
+   Parâmetros: l = playlists/mixes, v = vídeos, b = palavras bloqueadas (separados por vírgula) */
+var q = {}; location.search.slice(1).split('&').forEach(function (kv) { var p = kv.split('='); if (p[0]) q[p[0]] = decodeURIComponent(p[1] || ''); });
+var lists = (q.l || '').split(',').filter(Boolean), vids = (q.v || '').split(',').filter(Boolean), block = (q.b || '').toLowerCase().split(',').filter(Boolean);
+var src = lists.map(function (l) { return { list: l }; }).concat(vids.map(function (v) { return { video: v }; }));
+var player, tries = 0, seeked = false;
+function say(m) { try { parent.postMessage(m, '*'); } catch (e) { } }
+function pick() { return src[Math.floor(Math.random() * src.length)]; }
+function load() { seeked = false; var s = pick(); if (!s) return say('mytv:fail'); if (s.list) player.loadPlaylist({ list: s.list, listType: 'playlist', index: Math.floor(Math.random() * 15) }); else player.loadVideoById(s.video); }
+function onYouTubeIframeAPIReady() {
+  if (!src.length) return;                       // aberto sem lista de vídeos: não faz nada
+  var first = pick(), pv = { autoplay: 1, controls: 0, modestbranding: 1, rel: 0, iv_load_policy: 3, playsinline: 1, disablekb: 1, origin: location.origin };
+  if (first.list) { pv.listType = 'playlist'; pv.list = first.list; pv.index = Math.floor(Math.random() * 15); }
+  player = new YT.Player('p', { width: '100%', height: '100%', videoId: first.video || undefined, playerVars: pv,
+    events: {
+      onReady: function () { try { player.playVideo(); } catch (e) { } setTimeout(function () { if (player.getPlayerState() !== 1) { player.mute(); player.playVideo(); } }, 4000); },
+      onStateChange: function (e) {
+        if (e.data === 1) {
+          var v = player.getVideoData() || {}, t = ((v.title || '') + ' ' + (v.author || '')).toLowerCase();
+          if (block.some(function (b) { return t.indexOf(b) >= 0; })) { if (++tries > 12) return say('mytv:fail'); try { player.nextVideo(); } catch (x) { load(); } return; }
+          if (!seeked) { seeked = true; var d = player.getDuration(); if (d > 240) player.seekTo(Math.floor(d * (0.05 + Math.random() * 0.75)), true); }
+          say('mytv:playing:' + (v.title || ''));
+        }
+        if (e.data === 0) load();
+      },
+      // vídeo que não pode ser incorporado: tenta o próximo da lista ou outra fonte
+      onError: function () { if (++tries > 8) return say('mytv:fail'); try { var pl = player.getPlaylist && player.getPlaylist(); if (pl && pl.length > 1) player.nextVideo(); else load(); } catch (x) { load(); } }
+    } });
+}
+</script>
+<script src="https://www.youtube.com/iframe_api" onerror="say('mytv:fail')"></script>
+</body></html>
