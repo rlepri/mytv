@@ -537,6 +537,8 @@
   function idle() { clearTimeout(idleT); const m = +C.protetorMinutos || 0; if (m > 0 && !document.hidden) idleT = setTimeout(ssStart, m * 60000); }
   U.nav.onActivity = () => { if (!ssOn) idle(); };
   U.nav.keyTrap = e => {
+    // volume (+, − e mudo) não tira do protetor: a TV ajusta o som e a música continua
+    if (ssOn && [447, 448, 449, 175, 174, 173].indexOf(e.keyCode) >= 0) return true;
     if (ssOn) { ssStop(); return true; }
     if (railMoving) {
       const k = e.keyCode;

@@ -163,6 +163,7 @@
   // OK: toque curto = abrir; segurar (0,6 s) = menu do item, quando ele tiver um
   let holdT = null, held = false, okDown = false;
   document.addEventListener('keydown', e => {
+    if ([447, 448, 449, 175, 174, 173].indexOf(e.keyCode) >= 0) { if (nav.keyTrap) nav.keyTrap(e); return; } // volume: deixa a TV cuidar
     if (nav.onActivity) nav.onActivity();
     const k = e.keyCode;
     if (k === 13) {
