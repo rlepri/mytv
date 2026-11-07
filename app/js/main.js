@@ -163,10 +163,12 @@
   function renderApps() {
     const last = store.get('last', null), lastApp = last && ALL.find(a => a.id === last.id), nodes = [];
     if (lastApp) {
-      const c = el('div', 'f cont'), img = last.img || artFor(lastApp), box = el('div', 'img');
-      if (img) box.style.backgroundImage = 'url(' + img + ')'; else box.style.background = 'linear-gradient(135deg,#2a2433,#120f17)';
-      box.appendChild(el('div', 'sheen'));
-      if (!last.img) { const ic = iconImg(lastApp); const im = ic.querySelector('img'); const badge = new Image(); badge.className = 'badge'; badge.onerror = () => badge.remove(); badge.src = (im && im.src) || (lastApp.key ? B + 'img/apps/' + lastApp.key.replace(/\s+/g, '-') + '.png' : lastApp.icon); if (badge.src) box.appendChild(badge); }
+      // com título aberto pelo MyTV: a capa daquele título; abrindo o app direto: o logo do app (nada de imagem aleatória)
+      const c = el('div', 'f cont'), box = el('div', 'img');
+      if (last.img) { box.style.backgroundImage = 'url(' + last.img + ')'; box.appendChild(el('div', 'sheen')); }
+      else {
+        box.classList.add('logo'); const ic = iconImg(lastApp); ic.className = 'lg'; box.appendChild(ic); box.appendChild(el('div', 'sheen'));
+      }
       c.appendChild(box); c.appendChild(el('div', 'txt', '<small>CONTINUAR · ' + esc(lastApp.name.toUpperCase()) + '</small><b>' + esc(last.title || 'Voltar pro ' + lastApp.name) + '</b>'));
       c._act = () => launch(lastApp, { title: last.title, img: last.img, hist: false }); nodes.push(c);
     }
@@ -480,7 +482,7 @@
   const plId = s => { const m = /playlist[/:]([A-Za-z0-9]+)/.exec(s || ''); return m ? m[1] : (/^[A-Za-z0-9]{22}$/.test(s || '') ? s : ''); };
   function spStart() {
     const S = C.spotify || {}, lists = (S.playlists || []).map(plId).filter(Boolean);
-    if (!S.refreshToken || !lists.length) return Promise.resolve(false);
+    if (!S.ativo || !S.refreshToken || !lists.length) return Promise.resolve(false); // desligado: no Tizen o Spotify toma a frente da tela
     const want = (S.dispositivo || '').toLowerCase();
     return spApi('GET', '/me/player/devices').then(d => {
       const ds = (d && d.devices) || [];
