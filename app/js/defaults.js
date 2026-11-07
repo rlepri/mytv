@@ -51,6 +51,8 @@ window.MYTV_DEFAULTS = {
     player: "https://rlepri.github.io/mytv/player/",                      // endereço do player hospedado (ex.: https://rlepri.github.io/mytv/)
     listas: ["RDodgN3wLaAys"],       // a parte depois de "list=" no link
     videos: ["6h-sEV6uNxo"],         // a parte depois de "v=" no link
+    minutosPorVideo: 10,             // quanto tempo cada cena fica antes de trocar (com fade)
+    semSomDosVideos: false,          // true = vídeos mudos (ex.: quando tiver música de fora)
     bloquear: ["t-pain", "t pain", "bieber", "norah jones"] // pula vídeos com isso no título ou no canal
   },
 

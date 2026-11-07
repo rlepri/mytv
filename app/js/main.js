@@ -470,21 +470,30 @@
     const got = ssList ? Promise.resolve(ssList) : new Promise(ok => { const x = new XMLHttpRequest(); x.open('GET', 'videos/lista.json', true); x.timeout = 3000; x.onload = () => { try { ok(JSON.parse(x.responseText)); } catch (e) { ok([]); } }; x.onerror = x.ontimeout = () => ok([]); try { x.send(); } catch (e) { ok([]); } }).then(l => (ssList = Array.isArray(l) ? l : []));
     return got.then(list => {
       if (!ssOn || !list.length) return false;
-      const box = $('#ssvid'), v = document.createElement('video'); let last = -1;
-      v.setAttribute('playsinline', ''); v.preload = 'auto'; v.style.opacity = 0; v.style.transition = 'opacity 1.5s';
-      const next = () => {
-        let i = Math.floor(Math.random() * list.length); if (list.length > 1 && i === last) i = (i + 1) % list.length; last = i;
-        const it = list[i]; v.src = 'videos/' + (it.file || it); $('#sscap').textContent = it.title || '';
-        v.onloadedmetadata = () => { if (v.duration > 60) v.currentTime = Math.floor(v.duration * Math.random() * .7); };
+      // cada cena começa do início e repete até dar ~10 min; a ordem é embaralhada sem repetir
+      // até passar por todas; a troca é um fade de imagem e som (dois players alternando)
+      const P = C.protetor || {}, segMs = (+P.minutosPorVideo || 10) * 60000, FADE = 2500;
+      const box = $('#ssvid'); box.innerHTML = '';
+      const mk = () => { const v = document.createElement('video'); v.setAttribute('playsinline', ''); v.preload = 'auto'; v.loop = true; v.style.opacity = 0; v.style.transition = 'opacity ' + FADE + 'ms ease'; v.volume = 0; box.appendChild(v); return v; };
+      const players = [mk(), mk()]; let cur = 0, bag = [], segT = null, onAir = null;
+      const nextIndex = () => { if (!bag.length) { bag = list.map((_, k) => k); for (let k = bag.length - 1; k > 0; k--) { const r = Math.floor(Math.random() * (k + 1)); const t = bag[k]; bag[k] = bag[r]; bag[r] = t; } if (onAir != null && bag.length > 1 && bag[0] === onAir) bag.push(bag.shift()); } return bag.shift(); };
+      const ramp = (v, to) => { clearInterval(v._r); const from = v.volume, t0 = Date.now(); v._r = setInterval(() => { const k = Math.min(1, (Date.now() - t0) / FADE); try { v.volume = from + (to - from) * k; } catch (e) { } if (k >= 1) clearInterval(v._r); }, 80); };
+      const show = () => {
+        if (!ssOn) return;
+        const idx = nextIndex(), it = list[idx], v = players[cur], old = players[1 - cur]; onAir = idx;
+        v.src = 'videos/' + (it.file || it); v.currentTime = 0; v.volume = 0;
+        v.onplaying = () => { v.onplaying = null; v.style.opacity = 1; old.style.opacity = 0; ramp(v, P.semSomDosVideos ? 0 : 1); ramp(old, 0); setTimeout(() => { try { old.pause(); old.removeAttribute('src'); old.load(); } catch (e) { } }, FADE + 200); $('#sscap').textContent = it.title || ''; };
+        v.onerror = () => { if (list.length > 1) { cur = 1 - cur; setTimeout(show, 300); } };
         const p = v.play(); if (p && p.catch) p.catch(() => { v.muted = true; v.play().catch(() => { }); });
+        cur = 1 - cur;
+        clearTimeout(segT); segT = setTimeout(show, segMs);
       };
-      v.onplaying = () => { v.style.opacity = 1; };
-      v.onended = next; v.onerror = () => { if (list.length > 1) next(); };
-      box.innerHTML = ''; box.appendChild(v); next();
+      box._stop = () => { clearTimeout(segT); players.forEach(v => clearInterval(v._r)); };
+      show();
       return true;
     });
   }
-  function ssStop() { ssOn = false; $('#ss').classList.remove('open'); clearInterval(ssT); $('#ssvid').innerHTML = ''; ytP = null; setTimeout(() => { if (!ssOn) $('#ssimg').innerHTML = ''; }, 1300); idle(); }
+  function ssStop() { ssOn = false; $('#ss').classList.remove('open'); clearInterval(ssT); if ($('#ssvid')._stop) $('#ssvid')._stop(); $('#ssvid').innerHTML = ''; ytP = null; setTimeout(() => { if (!ssOn) $('#ssimg').innerHTML = ''; }, 1300); idle(); }
   function idle() { clearTimeout(idleT); const m = +C.protetorMinutos || 0; if (m > 0 && !document.hidden) idleT = setTimeout(ssStart, m * 60000); }
   U.nav.onActivity = () => { if (!ssOn) idle(); };
   U.nav.keyTrap = e => {
