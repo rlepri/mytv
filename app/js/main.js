@@ -379,6 +379,7 @@
       ], im);
     });
     list.appendChild(el('div', 'esec', 'Outros'));
+    list.appendChild(el('div', 'hint', 'Versão ' + (window.MYTV_VERSION || '?') + ' · ' + (window.MYTV_REMOTE ? 'carregada do site' : 'cópia instalada na TV')));
     const other = el('div', 'erow btnrow');
     other.appendChild(btn('Restaurar padrão', 'reset', () => { layout = null; layoutFix(); appPrefs = { order: [], show: {}, size: 'm' }; saveLayout(); saveApps(); }));
     other.appendChild(btn(soundOn() ? 'Sons: ligados' : 'Sons: desligados', 'snd', () => store.set('sons', !soundOn()), soundOn()));
