@@ -458,11 +458,50 @@
     setTimeout(() => { try { if (ssOn && (!ytP || !ytP.getPlayerState || ytP.getPlayerState() !== 1)) fail(); } catch (x) { fail(); } }, 15000);
     return true;
   }
+  /* ---------- Spotify no protetor: toca uma playlist sua no app do Spotify da TV ---------- */
+  let ssMusic = false, spTok = null;
+  function spReq(method, url, body, headers) {
+    return new Promise((ok, fail) => {
+      const x = new XMLHttpRequest(); x.open(method, url, true); x.timeout = 10000;
+      Object.keys(headers || {}).forEach(k => x.setRequestHeader(k, headers[k]));
+      x.onload = () => { let j = null; try { j = x.responseText ? JSON.parse(x.responseText) : null; } catch (e) { } (x.status >= 200 && x.status < 300) ? ok(j) : fail(new Error('Spotify ' + x.status + ' ' + (j && j.error && (j.error.message || j.error) || ''))); };
+      x.onerror = x.ontimeout = () => fail(new Error('Spotify sem conexão')); x.send(body || null);
+    });
+  }
+  function spToken() {
+    const S = C.spotify || {}; if (!S.clientId || !S.refreshToken) return Promise.reject(new Error('Spotify não configurado'));
+    if (spTok && spTok.exp > Date.now()) return Promise.resolve(spTok.v);
+    const rt = store.get('sp-rt', '') || S.refreshToken;
+    return spReq('POST', 'https://accounts.spotify.com/api/token', 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(rt), { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: 'Basic ' + btoa(S.clientId + ':' + S.clientSecret) })
+      .then(t => { if (t.refresh_token) store.set('sp-rt', t.refresh_token); spTok = { v: t.access_token, exp: Date.now() + (t.expires_in - 60) * 1000 }; return spTok.v; });
+  }
+  const spApi = (method, path, body) => spToken().then(t => spReq(method, 'https://api.spotify.com/v1' + path, body ? JSON.stringify(body) : null, { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }));
+  const plId = s => { const m = /playlist[/:]([A-Za-z0-9]+)/.exec(s || ''); return m ? m[1] : (/^[A-Za-z0-9]{22}$/.test(s || '') ? s : ''); };
+  function spStart() {
+    const S = C.spotify || {}, lists = (S.playlists || []).map(plId).filter(Boolean);
+    if (!S.refreshToken || !lists.length) return Promise.resolve(false);
+    const want = (S.dispositivo || '').toLowerCase();
+    return spApi('GET', '/me/player/devices').then(d => {
+      const ds = (d && d.devices) || [];
+      const dev = ds.find(x => want && x.name.toLowerCase().indexOf(want) >= 0) || ds.find(x => /tv/i.test(x.type) || /samsung|tv/i.test(x.name));
+      if (!dev) { console.log('[MyTV] Spotify: TV não aparece como dispositivo', ds.map(x => x.name)); return false; }
+      const pl = lists[Math.floor(Math.random() * lists.length)];
+      return spApi('GET', '/playlists/' + pl + '?fields=tracks.total').catch(() => ({ tracks: { total: 1 } })).then(info => {
+        const n = (info && info.tracks && info.tracks.total) || 1;
+        return spApi('PUT', '/me/player/shuffle?state=true&device_id=' + dev.id).catch(() => { })
+          .then(() => spApi('PUT', '/me/player/play?device_id=' + dev.id, { context_uri: 'spotify:playlist:' + pl, offset: { position: Math.floor(Math.random() * n) } }))
+          .then(() => true);
+      });
+    }).catch(e => { console.log('[MyTV] Spotify:', e.message); return false; });
+  }
+  function spStop() { if (!ssMusic) return; ssMusic = false; spApi('PUT', '/me/player/pause').catch(() => { }); }
+
   function ssStart() {
     if (ssOn || U.layers) return; ssOn = true; $('#ss').classList.add('open');
     $('#sscap').textContent = '';
     ssSlides();
     ssLocal().then(ok => { if (!ok && ssOn) ssHosted(); });
+    spStart().then(ok => { if (!ok || !ssOn) return; ssMusic = true; const b = $('#ssvid'); if (b._mute) b._mute(); });
   }
   // vídeos guardados no pacote da TV (pasta videos/, com a lista em videos/lista.json)
   let ssList = null;
@@ -482,18 +521,19 @@
         if (!ssOn) return;
         const idx = nextIndex(), it = list[idx], v = players[cur], old = players[1 - cur]; onAir = idx;
         v.src = 'videos/' + (it.file || it); v.currentTime = 0; v.volume = 0;
-        v.onplaying = () => { v.onplaying = null; v.style.opacity = 1; old.style.opacity = 0; ramp(v, P.semSomDosVideos ? 0 : 1); ramp(old, 0); setTimeout(() => { try { old.pause(); old.removeAttribute('src'); old.load(); } catch (e) { } }, FADE + 200); $('#sscap').textContent = it.title || ''; };
+        v.onplaying = () => { v.onplaying = null; v.style.opacity = 1; old.style.opacity = 0; ramp(v, (P.semSomDosVideos || ssMusic) ? 0 : 1); ramp(old, 0); setTimeout(() => { try { old.pause(); old.removeAttribute('src'); old.load(); } catch (e) { } }, FADE + 200); $('#sscap').textContent = it.title || ''; };
         v.onerror = () => { if (list.length > 1) { cur = 1 - cur; setTimeout(show, 300); } };
         const p = v.play(); if (p && p.catch) p.catch(() => { v.muted = true; v.play().catch(() => { }); });
         cur = 1 - cur;
         clearTimeout(segT); segT = setTimeout(show, segMs);
       };
       box._stop = () => { clearTimeout(segT); players.forEach(v => clearInterval(v._r)); };
+      box._mute = () => players.forEach(v => ramp(v, 0));
       show();
       return true;
     });
   }
-  function ssStop() { ssOn = false; $('#ss').classList.remove('open'); clearInterval(ssT); if ($('#ssvid')._stop) $('#ssvid')._stop(); $('#ssvid').innerHTML = ''; ytP = null; setTimeout(() => { if (!ssOn) $('#ssimg').innerHTML = ''; }, 1300); idle(); }
+  function ssStop() { spStop(); ssOn = false; $('#ss').classList.remove('open'); clearInterval(ssT); if ($('#ssvid')._stop) $('#ssvid')._stop(); $('#ssvid').innerHTML = ''; ytP = null; setTimeout(() => { if (!ssOn) $('#ssimg').innerHTML = ''; }, 1300); idle(); }
   function idle() { clearTimeout(idleT); const m = +C.protetorMinutos || 0; if (m > 0 && !document.hidden) idleT = setTimeout(ssStart, m * 60000); }
   U.nav.onActivity = () => { if (!ssOn) idle(); };
   U.nav.keyTrap = e => {

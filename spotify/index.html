@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MyTV · Spotify</title>
+<style>
+:root{--bg:#0d0a10;--panel:#17131d;--line:#2c2633;--fg:#f2eff7;--muted:#a59fb2;--hot:#ff6a3d;--ok:#3ddc84}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;justify-content:center;padding:40px 16px}
+main{width:100%;max-width:560px}h1{font-size:28px;margin:0 0 6px}h1 b{color:var(--hot)}p{color:var(--muted);margin:0 0 20px}
+label{display:block;font-size:14px;color:var(--muted);margin:16px 0 6px}input{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font:15px ui-monospace,Consolas,monospace}
+button{margin-top:22px;padding:13px 22px;border:0;border-radius:999px;background:var(--hot);color:#1d0700;font:600 16px system-ui,sans-serif;cursor:pointer}button:focus-visible,input:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;margin-top:18px}.ok{color:var(--ok);font-weight:600}.err{color:#ff7a7a}code{font-family:ui-monospace,Consolas,monospace;color:var(--fg)}
+</style></head><body><main>
+<h1>My<b>TV</b> · Spotify</h1>
+<p>Autoriza o MyTV a tocar suas playlists no protetor de tela. Feito uma vez só, aqui no PC.</p>
+<div id="form" class="box">
+  <label for="cid">Client ID</label><input id="cid" autocomplete="off" spellcheck="false">
+  <label for="sec">Client Secret</label><input id="sec" type="password" autocomplete="off" spellcheck="false">
+  <button id="go" type="button">Autorizar no Spotify</button>
+  <p style="margin:14px 0 0;font-size:14px">Os dois ficam só no seu navegador durante a autorização e vão no arquivo que você baixa no fim. Nada é salvo neste site.</p>
+</div>
+<div id="out" class="box" hidden></div>
+</main>
+<script>
+var REDIRECT = location.origin + location.pathname;
+var SCOPES = 'user-read-playback-state user-modify-playback-state playlist-read-private playlist-read-collaborative';
+function $(id) { return document.getElementById(id); }
+function out(html) { $('out').hidden = false; $('out').innerHTML = html; }
+$('go').onclick = function () {
+  var id = $('cid').value.trim(), sec = $('sec').value.trim();
+  if (!id || !sec) { out('<span class="err">Preencha o Client ID e o Client Secret.</span>'); return; }
+  var st = Math.random().toString(36).slice(2);
+  sessionStorage.setItem('sp', JSON.stringify({ id: id, sec: sec, st: st }));
+  location.href = 'https://accounts.spotify.com/authorize?response_type=code&client_id=' + encodeURIComponent(id) + '&scope=' + encodeURIComponent(SCOPES) + '&redirect_uri=' + encodeURIComponent(REDIRECT) + '&state=' + st + '&show_dialog=true';
+};
+var q = new URLSearchParams(location.search);
+if (q.get('error')) out('<span class="err">O Spotify recusou: ' + q.get('error') + '. Tente de novo.</span>');
+if (q.get('code')) {
+  $('form').hidden = true;
+  var sp = {}; try { sp = JSON.parse(sessionStorage.getItem('sp')) || {}; } catch (e) { }
+  if (!sp.id || sp.st !== q.get('state')) { $('form').hidden = false; out('<span class="err">A autorização expirou. Preencha de novo e clique em Autorizar.</span>'); }
+  else {
+    out('Finalizando…');
+    fetch('https://accounts.spotify.com/api/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: 'Basic ' + btoa(sp.id + ':' + sp.sec) },
+      body: 'grant_type=authorization_code&code=' + encodeURIComponent(q.get('code')) + '&redirect_uri=' + encodeURIComponent(REDIRECT) })
+      .then(function (r) { return r.json(); })
+      .then(function (t) {
+        sessionStorage.removeItem('sp'); history.replaceState(null, '', REDIRECT);
+        if (!t.refresh_token) throw new Error(t.error_description || t.error || 'sem token');
+        var data = JSON.stringify({ clientId: sp.id, clientSecret: sp.sec, refreshToken: t.refresh_token }, null, 2);
+        var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' })); a.download = 'spotify-mytv.json'; a.textContent = 'Baixar spotify-mytv.json';
+        a.style.cssText = 'display:inline-block;margin-top:14px;padding:12px 20px;border-radius:999px;background:#ff6a3d;color:#1d0700;font-weight:600;text-decoration:none';
+        out('<span class="ok">Autorizado.</span><br>Baixe o arquivo e coloque em <code>D:\\Projetos\\MyTV</code>. Não compartilhe esse arquivo com ninguém.<br>'); $('out').appendChild(a); a.click();
+      })
+      .catch(function (e) { out('<span class="err">Não deu certo: ' + e.message + '. Confira o Client Secret e tente de novo.</span>'); $('form').hidden = false; });
+  }
+}
+</script></body></html>
